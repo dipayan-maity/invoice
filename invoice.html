@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart Invoice | Click to Edit + Full Editor</title>
+
+<!-- Font Awesome 6 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+
+<!-- jsPDF + html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #f0f4f8 0%, #e2eaf1 100%);
+    padding: 40px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.wrapper {
+    max-width: 1450px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 30px;
+}
+
+/* ========== EDITOR PANEL ========== */
+.editor {
+    background: white;
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 20px 35px -10px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 20px;
+    height: fit-content;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.editor::-webkit-scrollbar { width: 5px; }
+.editor::-webkit-scrollbar-track { background: #eef2f8; border-radius: 10px; }
+.editor::-webkit-scrollbar-thumb { background: #2c7ab1; border-radius: 10px; }
+
+.editor h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a2c3e;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #2c7ab1;
+}
+
+.editor h3 i { color: #2c7ab1; font-size: 22px; }
+
+.section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2c7ab1;
+    margin: 18px 0 12px 0;
+    padding-bottom: 5px;
+    border-bottom: 1.5px solid #2c7ab1;
+    display: inline-block;
+}
+
+.field { margin-bottom: 14px; }
+
+.field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 5px;
+    letter-spacing: 0.3px;
+}
+
+.field label i { width: 22px; color: #2c7ab1; margin-right: 6px; }
+
+.field input, .field textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s;
+    background: #ffffff;
+}
+
+.field input:focus, .field textarea:focus {
+    outline: none;
+    border-color: #2c7ab1;
+    box-shadow: 0 0 0 3px rgba(44,122,177,0.1);
+}
+
+textarea { resize: vertical; min-height: 60px; }
+
+.btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 40px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary { background: #2c7ab1; color: white; }
+.btn-primary:hover { background: #236491; transform: translateY(-1px); }
+.btn-outline { background: white; border: 1.5px solid #e2e8f0; color: #2c7ab1; }
+.btn-outline:hover { border-color: #2c7ab1; background: #f8fcff; }
+.btn-secondary { background: #4a5568; color: white; }
+.btn-secondary:hover { background: #2d3748; }
+.btn-warning { background: #e67e22; color: white; }
+.btn-warning:hover { background: #d35400; }
+
+.logo-status { font-size: 10px; color: #2c7ab1; margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+hr { margin: 15px 0; border: none; border-top: 1px solid #eef2f8; }
+
+/* Edit Mode Indicator */
+.edit-mode-badge {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #2c7ab1;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 40px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 1000;
+    display: none;
+    gap: 8px;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ========== INVOICE STYLES ========== */
+.invoice {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px -15px rgba(0,0,0,0.15);
+    padding: 38px 42px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s;
+}
+
+/* Editable fields styling */
+.editable-field {
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    display: inline-block;
+}
+
+.editable-field:hover {
+    background: #fff3e0;
+    outline: 2px dashed #e67e22;
+    border-radius: 4px;
+    padding: 0 2px;
+}
+
+.editable-field.editing {
+    background: #fff3e0;
+    outline: 2px solid #e67e22;
+    border-radius: 4px;
+}
+
+.edit-input {
+    font-family: 'Inter', sans-serif;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    border: 2px solid #e67e22;
+    background: white;
+    padding: 2px 6px;
+    border-radius: 6px;
+    outline: none;
+    margin: -2px 0;
+}
+
+/* Header Section */
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 35px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e2e8f0;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.logo-area img { max-width: 180px; max-height: 60px; object-fit: contain; cursor: pointer; }
+.logo-placeholder { font-size: 24px; font-weight: 700; color: #2c7ab1; letter-spacing: -0.5px; cursor: pointer; }
+
+.customer-card {
+    background: #f8fafc;
+    padding: 18px 25px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    min-width: 280px;
+}
+
+.customer-card .label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #2c7ab1;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+
+.customer-info { display: flex; flex-direction: column; gap: 10px; }
+.customer-info-item { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; color: #1e293b; }
+.customer-info-item i { width: 22px; color: #2c7ab1; font-size: 14px; }
+
+/* Two Column Order Details */
+.order-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 50px;
+    margin-bottom: 30px;
+}
+
+.detail-col { display: flex; flex-direction: column; gap: 15px; }
+.detail-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    padding: 10px 0;
+    border-bottom: 1px solid #edf2f7;
+}
+.detail-label {
+    font-weight: 700;
+    color: #2c7ab1;
+    min-width: 200px;
+    font-size: 13px;
+}
+.detail-value {
+    color: #1e293b;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Address Section */
+.address-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 35px;
+    padding: 20px 0;
+    border-top: 2px solid #e2e8f0;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.address-box {
+    background: #f8fafc;
+    padding: 18px 22px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.address-box h4 {
+    font-size: 12px;
+    font-weight: 800;
+    color: #2c7ab1;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.address-box p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #334155;
+    font-weight: 500;
+    white-space: pre-line;
+    cursor: pointer;
+}
+
+/* Items Table */
+.items-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 25px 0 15px 0;
+    letter-spacing: 0.5px;
+}
+
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+.items-table th {
+    text-align: left;
+    padding: 14px 10px;
+    border-top: 2px solid #2c7ab1;
+    border-bottom: 2px solid #2c7ab1;
+    font-weight: 700;
+    color: #2c7ab1;
+    font-size: 13px;
+    background: #fafcff;
+}
+
+.items-table td {
+    padding: 16px 10px;
+    border-bottom: 1px solid #edf2f7;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.items-table td:first-child { cursor: pointer; }
+.items-table th.price-col,
+.items-table td.price-col { text-align: right; }
+
+/* Total Section */
+.total-section {
+    text-align: right;
+    margin: 20px 0 30px;
+    padding: 20px 25px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    width: 360px;
+    margin-left: auto;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 5px 0;
+}
+
+.total-row .total-amount { cursor: pointer; }
+
+/* Footer */
+.footer-section {
+    margin-top: 30px;
+    padding-top: 25px;
+    border-top: 2px solid #e2e8f0;
+}
+
+.support-message {
+    font-size: 13px;
+    color: #475569;
+    margin-bottom: 20px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #fef9e3;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border-left: 4px solid #2c7ab1;
+    cursor: pointer;
+}
+
+.contact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    margin-bottom: 20px;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    background: #f8fafc;
+    padding: 10px 20px;
+    border-radius: 40px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+}
+
+.contact-item i { width: 24px; color: #2c7ab1; font-size: 14px; }
+
+.thankyou {
+    text-align: center;
+    margin-top: 25px;
+    padding: 15px 20px;
+    background: #f8fafc;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #2c7ab1;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+}
+
+/* Print */
+@media print {
+    body { background: white; padding: 0; margin: 0; }
+    .editor { display: none; }
+    .edit-mode-badge { display: none; }
+    .wrapper { display: block; margin: 0; padding: 0; }
+    .invoice { box-shadow: none; padding: 0.3in; border-radius: 0; border: 1px solid #ccc; }
+    @page { size: A4; margin: 0.3in; }
+}
+
+@media (max-width: 1000px) {
+    .wrapper { grid-template-columns: 1fr; }
+    .editor { position: relative; top: 0; max-height: unset; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+    <!-- EDITOR PANEL -->
+    <div class="editor">
+        <h3><i class="fas fa-edit"></i> Invoice Editor</h3>
+        <p style="font-size: 12px; color: #e67e22; margin-bottom: 15px;">
+            <i class="fas fa-mouse-pointer"></i> <strong>Tip:</strong> Click any text on the invoice to edit it directly!
+        </p>
+        
+        <div class="field">
+            <label><i class="fas fa-image"></i> Company Logo</label>
+            <input type="file" id="logoUpload" accept="image/*">
+            <div class="logo-status" id="logoStatus"><i class="fas fa-info-circle"></i> Upload your logo</div>
+        </div>
+        
+        <div><span class="section-title">Customer Details</span></div>
+        <div class="field"><label><i class="fas fa-user"></i> Customer Name</label><input type="text" id="custName" value="Clarissa Rodriguez"></div>
+        <div class="field"><label><i class="fas fa-envelope"></i> Customer Email</label><input type="email" id="custEmail" value="clarissaknockoffbag@gmail.com"></div>
+        <div class="field"><label><i class="fas fa-phone"></i> Customer Phone</label><input type="text" id="custPhone" value="3032639741"></div>
+        
+        <div><span class="section-title">Order Information</span></div>
+        <div class="field"><label><i class="fas fa-id-card"></i> Account Number</label><input type="text" id="accountNum" value="527505......7212"></div>
+        <div class="field"><label><i class="fas fa-hashtag"></i> Order ID</label><input type="text" id="orderId" value="13371344"></div>
+        <div class="field"><label><i class="fas fa-calendar"></i> Date / Time</label><input type="text" id="dateTime" value="05/13/2026"></div>
+        <div class="field"><label><i class="fas fa-box"></i> Product</label><input type="text" id="productName" value="Prime Plan"></div>
+        <div class="field"><label><i class="fas fa-dollar-sign"></i> Amount ($)</label><input type="number" id="amount" value="56.97" step="0.01"></div>
+        <div class="field"><label><i class="fas fa-credit-card"></i> Payment Method</label><input type="text" id="paymentMethod" value="Mastercard (Ending in 7212)"></div>
+        
+        <div><span class="section-title">Addresses</span></div>
+        <div class="field"><label><i class="fas fa-map-pin"></i> Bill To</label><textarea id="billAddress" rows="2">Clarissa Rodriguez
+7339 west Grant Ranch Blvd #216
+Lakewood, CO 80123 US</textarea></div>
+        <div class="field"><label><i class="fas fa-truck"></i> Ship To</label><textarea id="shipAddress" rows="2">Clarissa Rodriguez
+7339 west Grant Ranch Blvd #216
+Lakewood, CO 80123 US</textarea></div>
+        
+        <div><span class="section-title">Footer</span></div>
+        <div class="field"><label><i class="fas fa-headset"></i> Support Message</label><textarea id="supportMsg" rows="2">If you have any questions, please contact our support team.</textarea></div>
+        <div class="field"><label><i class="fas fa-phone-volume"></i> Toll Free</label><input type="text" id="tollfree" value="8332011724"></div>
+        <div class="field"><label><i class="fas fa-envelope"></i> Support Email</label><input type="email" id="supportEmail" value="hello@qualitydrivenlabs.store"></input></div>
+        <div class="field"><label><i class="fas fa-building"></i> Company Address</label><textarea id="companyAddress" rows="2">Cyber Triumph LLC
+15333 Culver Dr, Ste 340 #2065
+Irvine, CA 92604, USA</textarea></div>
+        
+        <button class="btn btn-primary" id="syncFromEditorBtn"><i class="fas fa-sync-alt"></i> Apply Changes</button>
+        <button class="btn btn-outline" id="pdfBtn"><i class="fas fa-file-pdf"></i> Download PDF</button>
+        <button class="btn btn-secondary" id="printBtn"><i class="fas fa-print"></i> Print Invoice</button>
+        <button class="btn btn-warning" id="resetDefaultBtn"><i class="fas fa-undo-alt"></i> Reset to Default</button>
+    </div>
+
+    <!-- INVOICE -->
+    <div class="invoice" id="invoice">
+        <div class="invoice-header">
+            <div class="logo-area" id="logoArea">
+                <img src="logo.png" alt="Company Logo">
+            </div>
+            <div class="customer-card">
+                <div class="label">Customer Details</div>
+                <div class="customer-info">
+                    <div class="customer-info-item"><i class="fas fa-user"></i> <span class="editable-field" data-field="custName" id="displayName">Clarissa Rodriguez</span></div>
+                    <div class="customer-info-item"><i class="fas fa-envelope"></i> <span class="editable-field" data-field="custEmail" id="displayEmail">clarissaknockoffbag@gmail.com</span></div>
+                    <div class="customer-info-item"><i class="fas fa-phone"></i> <span class="editable-field" data-field="custPhone" id="displayPhone">3032639741</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="order-details">
+            <div class="detail-col">
+                <div class="detail-row"><span class="detail-label">Consumer Account Number</span><span class="detail-value editable-field" data-field="accountNum" id="displayAccount">527505......7212</span></div>
+                <div class="detail-row"><span class="detail-label">Product</span><span class="detail-value editable-field" data-field="productName" id="displayProduct">Prime Plan</span></div>
+                <div class="detail-row"><span class="detail-label">Amount</span><span class="detail-value">$<span class="editable-field" data-field="amount" id="displayAmount">56.97</span></span></div>
+                <div class="detail-row"><span class="detail-label">Payment Method</span><span class="detail-value editable-field" data-field="paymentMethod" id="displayPayment">Mastercard (Ending in 7212)</span></div>
+            </div>
+            <div class="detail-col">
+                <div class="detail-row"><span class="detail-label">Order ID</span><span class="detail-value editable-field" data-field="orderId" id="displayOrderId">13371344</span></div>
+                <div class="detail-row"><span class="detail-label">Date/Time</span><span class="detail-value editable-field" data-field="dateTime" id="displayDateTime">05/13/2026</span></div>
+            </div>
+        </div>
+        
+        <div class="address-section">
+            <div class="address-box">
+                <h4><i class="fas fa-file-invoice"></i> BILL TO</h4>
+                <p class="editable-field" data-field="billAddress" id="displayBillTo">Clarissa Rodriguez<br>7339 west Grant Ranch Blvd #216<br>Lakewood, CO 80123 US</p>
+            </div>
+            <div class="address-box">
+                <h4><i class="fas fa-truck"></i> SHIP TO</h4>
+                <p class="editable-field" data-field="shipAddress" id="displayShipTo">Clarissa Rodriguez<br>7339 west Grant Ranch Blvd #216<br>Lakewood, CO 80123 US</p>
+            </div>
+        </div>
+        
+        <div class="items-title"><i class="fas fa-list-ul"></i> ITEMS IN YOUR ORDER</div>
+        <table class="items-table">
+            <thead><tr><th>Product / Service</th><th class="price-col">Price</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td class="editable-field" data-field="productName" id="tableProduct">Prime Plan</td>
+                    <td class="price-col">$<span class="editable-field" data-field="amount" id="tableAmount">56.97</span></td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="total-section">
+            <div class="total-row"><span class="total-label">Subtotal</span><span class="total-amount">$<span class="editable-field" data-field="amount" id="subtotal">56.97</span></span></div>
+            <div class="total-row"><span class="total-label">Discount</span><span class="total-amount">$0.00</span></div>
+            <div class="total-row grand-total"><span class="total-label">Total</span><span class="total-amount">$<span class="editable-field" data-field="amount" id="grandTotal">56.97</span></span></div>
+        </div>
+        
+        <div class="footer-section">
+            <div class="support-message"><i class="fas fa-headset"></i> <span class="editable-field" data-field="supportMsg" id="displaySupportMsg">If you have any questions, please contact our support team.</span></div>
+            <div class="contact-row">
+                <div class="contact-item"><i class="fas fa-phone-volume"></i> <strong>Toll Free :</strong> <span class="editable-field" data-field="tollfree" id="displayTollfree">8332011724</span></div>
+                <div class="contact-item"><i class="fas fa-envelope"></i> <strong>Email :</strong> <span class="editable-field" data-field="supportEmail" id="displaySupportEmail">hello@qualitydrivenlabs.store</span></div>
+                <div class="contact-item"><i class="fas fa-map-marker-alt"></i> <strong>Address :</strong> <span class="editable-field" data-field="companyAddress" id="displayCompanyAddr">Cyber Triumph LLC<br>15333 Culver Dr, Ste 340 #2065<br>Irvine, CA 92604, USA</span></div>
+            </div>
+        </div>
+        
+        <div class="thankyou editable-field" data-field="thankyouMsg" id="thankyouMsg">
+            <i class="fas fa-heart"></i> Thank you for choosing Code Pipeline Sanctuary!
+        </div>
+    </div>
+</div>
+
+<!-- Edit Mode Badge -->
+<div class="edit-mode-badge" id="editModeBadge">
+    <i class="fas fa-edit"></i> Click text to edit
+</div>
+
+<script>
+// Field mapping
+const fieldMap = {
+    custName: ['displayName'],
+    custEmail: ['displayEmail'],
+    custPhone: ['displayPhone'],
+    accountNum: ['displayAccount'],
+    orderId: ['displayOrderId'],
+    dateTime: ['displayDateTime'],
+    productName: ['displayProduct', 'tableProduct'],
+    amount: ['displayAmount', 'tableAmount', 'subtotal', 'grandTotal'],
+    paymentMethod: ['displayPayment'],
+    billAddress: ['displayBillTo'],
+    shipAddress: ['displayShipTo'],
+    supportMsg: ['displaySupportMsg'],
+    tollfree: ['displayTollfree'],
+    supportEmail: ['displaySupportEmail'],
+    companyAddress: ['displayCompanyAddr']
+};
+
+// Get value from editor
+function getFieldValue(fieldId) {
+    return document.getElementById(fieldId).value;
+}
+
+// Update all displays
+function updateAllDisplays() {
+    // Customer
+    document.getElementById('displayName').innerText = getFieldValue('custName') || '—';
+    document.getElementById('displayEmail').innerText = getFieldValue('custEmail') || '—';
+    document.getElementById('displayPhone').innerText = getFieldValue('custPhone') || '—';
+    
+    // Order
+    document.getElementById('displayAccount').innerText = getFieldValue('accountNum') || '—';
+    document.getElementById('displayOrderId').innerText = getFieldValue('orderId') || '—';
+    document.getElementById('displayDateTime').innerText = getFieldValue('dateTime') || '—';
+    
+    let product = getFieldValue('productName') || '—';
+    document.getElementById('displayProduct').innerText = product;
+    document.getElementById('tableProduct').innerText = product;
+    
+    let amount = parseFloat(getFieldValue('amount'));
+    if(isNaN(amount)) amount = 0;
+    document.getElementById('displayAmount').innerText = amount.toFixed(2);
+    document.getElementById('tableAmount').innerText = amount.toFixed(2);
+    document.getElementById('subtotal').innerText = amount.toFixed(2);
+    document.getElementById('grandTotal').innerText = amount.toFixed(2);
+    document.getElementById('displayPayment').innerText = getFieldValue('paymentMethod') || '—';
+    
+    // Addresses
+    let bill = getFieldValue('billAddress') || '—';
+    let ship = getFieldValue('shipAddress') || '—';
+    document.getElementById('displayBillTo').innerHTML = bill.replace(/\n/g, '<br>');
+    document.getElementById('displayShipTo').innerHTML = ship.replace(/\n/g, '<br>');
+    
+    // Footer
+    document.getElementById('displaySupportMsg').innerText = getFieldValue('supportMsg') || '—';
+    document.getElementById('displayTollfree').innerText = getFieldValue('tollfree') || '—';
+    document.getElementById('displaySupportEmail').innerText = getFieldValue('supportEmail') || '—';
+    let addr = getFieldValue('companyAddress') || '—';
+    document.getElementById('displayCompanyAddr').innerHTML = addr.replace(/\n/g, '<br>');
+    document.getElementById('thankyouMsg').innerHTML = '<i class="fas fa-heart"></i> ' + (getFieldValue('thankyouMsg') || 'Thank you!');
+}
+
+// Update editor from inline edit
+function updateEditorFromField(fieldName, value) {
+    const editorField = document.getElementById(fieldName);
+    if(editorField) {
+        if(editorField.tagName === 'INPUT' || editorField.tagName === 'TEXTAREA') {
+            editorField.value = value;
+        } else {
+            editorField.innerText = value;
+        }
+    }
+    updateAllDisplays();
+}
+
+// Inline editing functionality
+function makeEditable(element, fieldName, isHtmlContent = false) {
+    const originalValue = isHtmlContent ? element.innerHTML : element.innerText;
+    const input = document.createElement(isHtmlContent ? 'textarea' : 'input');
+    input.className = 'edit-input';
+    input.value = isHtmlContent ? element.innerText : originalValue;
+    if(isHtmlContent) input.style.width = '100%';
+    input.style.width = Math.max(element.offsetWidth, 150) + 'px';
+    
+    element.classList.add('editing');
+    element.innerHTML = '';
+    element.appendChild(input);
+    input.focus();
+    
+    function save() {
+        const newValue = input.value;
+        if(isHtmlContent) {
+            element.innerHTML = newValue.replace(/\n/g, '<br>');
+        } else {
+            element.innerText = newValue;
+        }
+        element.classList.remove('editing');
+        
+        // Update the corresponding editor field
+        const editorField = document.getElementById(fieldName);
+        if(editorField) {
+            if(editorField.tagName === 'INPUT' || editorField.tagName === 'TEXTAREA') {
+                editorField.value = newValue;
+            } else {
+                editorField.innerText = newValue;
+            }
+        }
+        
+        // Special handling for amount field (numeric)
+        if(fieldName === 'amount') {
+            let num = parseFloat(newValue);
+            if(!isNaN(num)) {
+                const formatted = num.toFixed(2);
+                document.querySelectorAll('[data-field="amount"]').forEach(el => {
+                    if(el !== element) el.innerText = formatted;
+                });
+                document.getElementById('amount').value = formatted;
+            }
+        }
+        
+        // Special handling for product name
+        if(fieldName === 'productName') {
+            document.querySelectorAll('[data-field="productName"]').forEach(el => {
+                if(el !== element) el.innerText = newValue;
+            });
+        }
+        
+        updateAllDisplays();
+    }
+    
+    input.addEventListener('blur', save);
+    input.addEventListener('keypress', (e) => {
+        if(e.key === 'Enter' && !isHtmlContent) save();
+    });
+}
+
+// Attach click handlers to editable fields
+function attachEditHandlers() {
+    document.querySelectorAll('.editable-field').forEach(el => {
+        const fieldName = el.getAttribute('data-field');
+        if(fieldName && !el.hasAttribute('data-listener')) {
+            el.setAttribute('data-listener', 'true');
+            const isHtml = fieldName === 'billAddress' || fieldName === 'shipAddress' || fieldName === 'companyAddress';
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                makeEditable(el, fieldName, isHtml);
+            });
+        }
+    });
+}
+
+// Logo upload
+document.getElementById("logoUpload").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+            const data = imageData.data;
+            let whiteCount = 0;
+            for(let i=0;i<data.length;i+=4){
+                if(data[i]>240 && data[i+1]>240 && data[i+2]>240 && data[i+3]>50){
+                    whiteCount++;
+                    data[i]=44; data[i+1]=122; data[i+2]=177;
+                }
+            }
+            const ratio = whiteCount/(data.length/4);
+            if(ratio>0.15){
+                ctx.putImageData(imageData,0,0);
+                document.getElementById("logoArea").innerHTML = `<img src="${canvas.toDataURL('image/png')}" alt="Logo">`;
+                document.getElementById("logoStatus").innerHTML = '<i class="fas fa-magic"></i> White logo converted';
+            } else {
+                document.getElementById("logoArea").innerHTML = `<img src="${event.target.result}" alt="Logo">`;
+                document.getElementById("logoStatus").innerHTML = '<i class="fas fa-check"></i> Logo applied';
+            }
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+// PDF Download
+async function downloadPDF() {
+    updateAllDisplays();
+    const element = document.getElementById("invoice");
+    const btn = document.getElementById("pdfBtn");
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Generating...';
+    btn.disabled = true;
+    try {
+        const canvas = await html2canvas(element, { scale: 2.5, backgroundColor: "#ffffff", logging: false });
+        const imgData = canvas.toDataURL("image/png");
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "mm", "a4");
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = pdf.internal.pageSize.getHeight();
+        const imgW = pdfW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        if(imgH > pdfH){
+            const scale = pdfH / imgH;
+            pdf.addImage(imgData, "PNG", (pdfW - (imgW*scale))/2, 0, imgW*scale, pdfH);
+        } else {
+            pdf.addImage(imgData, "PNG", 0, 0, imgW, imgH);
+        }
+        pdf.save(`Invoice_${document.getElementById("orderId").value || "000000"}.pdf`);
+    } catch(e) { alert("PDF error, using print"); window.print(); }
+    finally { btn.innerHTML = original; btn.disabled = false; }
+}
+
+function printInvoice() { updateAllDisplays(); window.print(); }
+
+function resetToDefault() {
+    document.getElementById("custName").value = "Clarissa Rodriguez";
+    document.getElementById("custEmail").value = "clarissaknockoffbag@gmail.com";
+    document.getElementById("custPhone").value = "3032639741";
+    document.getElementById("accountNum").value = "527505......7212";
+    document.getElementById("orderId").value = "13371344";
+    document.getElementById("dateTime").value = "05/13/2026";
+    document.getElementById("productName").value = "Prime Plan";
+    document.getElementById("amount").value = "56.97";
+    document.getElementById("paymentMethod").value = "Mastercard (Ending in 7212)";
+    document.getElementById("billAddress").value = "Clarissa Rodriguez\n7339 west Grant Ranch Blvd #216\nLakewood, CO 80123 US";
+    document.getElementById("shipAddress").value = "Clarissa Rodriguez\n7339 west Grant Ranch Blvd #216\nLakewood, CO 80123 US";
+    document.getElementById("supportMsg").value = "If you have any questions, please contact our support team.";
+    document.getElementById("tollfree").value = "8332011724";
+    document.getElementById("supportEmail").value = "hello@qualitydrivenlabs.store";
+    document.getElementById("companyAddress").value = "Cyber Triumph LLC\n15333 Culver Dr, Ste 340 #2065\nIrvine, CA 92604, USA";
+    document.getElementById("thankyouMsg").value = "Thank you for choosing Cyber Triumph LLC!";
+    updateAllDisplays();
+}
+
+// Event listeners
+document.getElementById("syncFromEditorBtn").addEventListener("click", updateAllDisplays);
+document.getElementById("pdfBtn").addEventListener("click", downloadPDF);
+document.getElementById("printBtn").addEventListener("click", printInvoice);
+document.getElementById("resetDefaultBtn").addEventListener("click", resetToDefault);
+
+// Live update from editor
+const editorFields = ["custName","custEmail","custPhone","accountNum","orderId","dateTime","productName","amount","paymentMethod","billAddress","shipAddress","supportMsg","tollfree","supportEmail","companyAddress","thankyouMsg"];
+editorFields.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener("input", updateAllDisplays);
+});
+
+// Show edit mode badge after a moment
+setTimeout(() => {
+    const badge = document.getElementById('editModeBadge');
+    badge.style.display = 'flex';
+    setTimeout(() => { badge.style.opacity = '0.8'; }, 100);
+    setTimeout(() => { badge.style.opacity = '1'; }, 200);
+}, 500);
+
+attachEditHandlers();
+updateAllDisplays();
+
+// Re-attach handlers after display updates (for dynamic content)
+const observer = new MutationObserver(() => attachEditHandlers());
+observer.observe(document.getElementById('invoice'), { childList: true, subtree: true });
+</script>
+</body>
+</html>
